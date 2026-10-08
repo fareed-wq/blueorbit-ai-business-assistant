@@ -1,8 +1,11 @@
 import os
+import time
+from collections import defaultdict, deque
+from threading import Lock
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -19,6 +22,39 @@ if not N8N_WEBHOOK_SECRET:
     raise RuntimeError("N8N_WEBHOOK_SECRET is not configured")
 
 app = FastAPI(title="BlueOrbit AI Assistant API")
+
+
+RATE_LIMIT_MAX_REQUESTS = 20
+RATE_LIMIT_WINDOW_SECONDS = 60.0
+
+_rate_limit_requests: dict[str, deque[float]] = defaultdict(deque)
+_rate_limit_lock = Lock()
+
+
+def enforce_rate_limit(client_key: str) -> None:
+    now = time.monotonic()
+    cutoff = now - RATE_LIMIT_WINDOW_SECONDS
+
+    with _rate_limit_lock:
+        requests = _rate_limit_requests[client_key]
+
+        while requests and requests[0] <= cutoff:
+            requests.popleft()
+
+        if len(requests) >= RATE_LIMIT_MAX_REQUESTS:
+            retry_after = max(
+                1,
+                int(RATE_LIMIT_WINDOW_SECONDS - (now - requests[0]))
+            )
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again later.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        requests.append(now)
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,10 +76,13 @@ async def health():
 
 
 @app.post("/api/ai-chat")
-async def ai_chat(request: ChatRequest):
+async def ai_chat(request: Request, payload: ChatRequest):
+    client_ip = request.client.host if request.client else "unknown"
+    enforce_rate_limit(client_ip)
+
     payload = {
-        "sessionId": request.sessionId,
-        "message": request.message,
+        "sessionId": payload.sessionId,
+        "message": payload.message,
     }
 
     try:
