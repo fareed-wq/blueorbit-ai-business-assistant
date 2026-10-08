@@ -61,6 +61,37 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 422)
         upstream.assert_not_called()
 
+    async def test_blank_message_returns_422_without_calling_n8n(self):
+        with patch("main.httpx.AsyncClient") as upstream:
+            response = await self.post_chat({
+                "sessionId": "test-session",
+                "message": "   ",
+            })
+
+        self.assertEqual(response.status_code, 422)
+        upstream.assert_not_called()
+
+    async def test_blank_session_id_returns_422_without_calling_n8n(self):
+        with patch("main.httpx.AsyncClient") as upstream:
+            response = await self.post_chat({
+                "sessionId": "   ",
+                "message": "Test message",
+            })
+
+        self.assertEqual(response.status_code, 422)
+        upstream.assert_not_called()
+
+    async def test_extra_fields_are_rejected(self):
+        with patch("main.httpx.AsyncClient") as upstream:
+            response = await self.post_chat({
+                "sessionId": "test-session",
+                "message": "Test message",
+                "admin": True,
+            })
+
+        self.assertEqual(response.status_code, 422)
+        upstream.assert_not_called()
+
     async def test_upstream_connection_error_hides_internal_details(self):
         client = self.fake_upstream_client(
             error=httpx.ConnectError("private connection details")

@@ -7,7 +7,7 @@ import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 load_dotenv()
 
@@ -66,8 +66,18 @@ app.add_middleware(
 
 
 class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     sessionId: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("sessionId", "message")
+    @classmethod
+    def reject_blank_strings(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Field must not be blank")
+        return value
 
 
 @app.get("/health")
