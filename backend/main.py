@@ -26,16 +26,30 @@ app = FastAPI(title="BlueOrbit AI Assistant API")
 
 RATE_LIMIT_MAX_REQUESTS = 20
 RATE_LIMIT_WINDOW_SECONDS = 60.0
+RATE_LIMIT_CLEANUP_INTERVAL_SECONDS = 60.0
 
 _rate_limit_requests: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = Lock()
+_last_rate_limit_cleanup = 0.0
 
 
 def enforce_rate_limit(client_key: str) -> None:
+    global _last_rate_limit_cleanup
+
     now = time.monotonic()
     cutoff = now - RATE_LIMIT_WINDOW_SECONDS
 
     with _rate_limit_lock:
+        if now - _last_rate_limit_cleanup >= RATE_LIMIT_CLEANUP_INTERVAL_SECONDS:
+            for existing_key, timestamps in list(_rate_limit_requests.items()):
+                while timestamps and timestamps[0] <= cutoff:
+                    timestamps.popleft()
+
+                if not timestamps:
+                    del _rate_limit_requests[existing_key]
+
+            _last_rate_limit_cleanup = now
+
         requests = _rate_limit_requests[client_key]
 
         while requests and requests[0] <= cutoff:

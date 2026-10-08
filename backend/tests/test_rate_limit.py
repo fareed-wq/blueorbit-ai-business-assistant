@@ -14,7 +14,9 @@ import main
 
 class RateLimitTests(unittest.TestCase):
     def setUp(self):
-        main._rate_limit_requests.clear()
+        with main._rate_limit_lock:
+            main._rate_limit_requests.clear()
+            main._last_rate_limit_cleanup = 0.0
 
     def test_rejects_request_21(self):
         with patch("main.time.monotonic", return_value=100.0):
@@ -41,6 +43,15 @@ class RateLimitTests(unittest.TestCase):
 
             # After 61 seconds, the previous 20 requests have expired.
             main.enforce_rate_limit("test-client")
+
+
+    def test_idle_client_keys_are_removed_during_periodic_cleanup(self):
+        with patch("main.time.monotonic", side_effect=[100.0, 161.0]):
+            main.enforce_rate_limit("idle-client")
+            main.enforce_rate_limit("active-client")
+
+        self.assertNotIn("idle-client", main._rate_limit_requests)
+        self.assertIn("active-client", main._rate_limit_requests)
 
 
 if __name__ == "__main__":
