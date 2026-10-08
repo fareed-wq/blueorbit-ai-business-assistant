@@ -3,6 +3,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 
+import os
+
+# Safe defaults let tests run without a local .env file.
+os.environ.setdefault("N8N_WEBHOOK_URL", "http://n8n.test/webhook/ai-chat")
+os.environ.setdefault("N8N_WEBHOOK_SECRET", "test-only-secret")
+
 import main
 
 
