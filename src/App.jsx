@@ -76,6 +76,13 @@ function App() {
       })
 
       if (!response.ok) {
+        if (response.status === 429) {
+          setError(
+            'You have sent too many messages in a short period. Please wait a minute and try again.'
+          )
+          return
+        }
+
         throw new Error(`Request failed with status ${response.status}`)
       }
 
