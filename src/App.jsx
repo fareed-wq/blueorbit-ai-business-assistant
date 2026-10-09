@@ -83,6 +83,16 @@ function App() {
           return
         }
 
+        if (response.status === 503) {
+          const retryAfter = Number(response.headers.get('Retry-After'))
+          setError(
+            Number.isFinite(retryAfter) && retryAfter > 0
+              ? `The assistant is busy right now. Please try again in ${retryAfter} seconds.`
+              : 'The assistant is busy right now. Please try again shortly.'
+          )
+          return
+        }
+
         throw new Error(`Request failed with status ${response.status}`)
       }
 
