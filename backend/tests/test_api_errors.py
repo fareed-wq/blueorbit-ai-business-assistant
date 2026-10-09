@@ -37,14 +37,14 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
         with main._chat_concurrency_lock:
             main._active_chat_requests = 0
 
-    async def post_chat(self, payload):
+    async def post_chat(self, payload, headers=None):
         transport = httpx.ASGITransport(app=main.app)
 
         async with _REAL_ASYNC_CLIENT(
             transport=transport,
             base_url="http://testserver",
         ) as client:
-            return await client.post("/api/ai-chat", json=payload)
+            return await client.post("/api/ai-chat", json=payload, headers=headers)
 
     async def post_raw_chat(self, content, headers=None):
         transport = httpx.ASGITransport(app=main.app)
@@ -188,10 +188,17 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_requests_are_rate_limited_before_validation(self):
         with patch("main.httpx.AsyncClient") as upstream:
             for index in range(21):
-                response = await self.post_chat({
+                payload = {
                     "sessionId": f"invalid-rate-limit-{index}",
                     "message": "   ",
-                })
+                }
+
+                headers = (
+                    {"Origin": main.FRONTEND_ORIGIN}
+                    if index == 20
+                    else None
+                )
+                response = await self.post_chat(payload, headers=headers)
 
                 if index < 20:
                     self.assertEqual(response.status_code, 422)
@@ -200,6 +207,10 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
                     retry_after = int(response.headers["retry-after"])
                     self.assertGreaterEqual(retry_after, 1)
                     self.assertLessEqual(retry_after, 60)
+                    self.assertEqual(
+                        response.headers.get("access-control-allow-origin"),
+                        main.FRONTEND_ORIGIN,
+                    )
 
         upstream.assert_not_called()
 
