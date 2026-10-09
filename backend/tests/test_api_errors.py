@@ -33,6 +33,7 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         with main._rate_limit_lock:
             main._rate_limit_requests.clear()
+            main._last_rate_limit_cleanup = 0.0
         with main._chat_concurrency_lock:
             main._active_chat_requests = 0
 
@@ -183,6 +184,24 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
                 first_response = await asyncio.wait_for(first_task, timeout=2)
 
         self.assertEqual(first_response.status_code, 200)
+
+    async def test_invalid_requests_are_rate_limited_before_validation(self):
+        with patch("main.httpx.AsyncClient") as upstream:
+            for index in range(21):
+                response = await self.post_chat({
+                    "sessionId": f"invalid-rate-limit-{index}",
+                    "message": "   ",
+                })
+
+                if index < 20:
+                    self.assertEqual(response.status_code, 422)
+                else:
+                    self.assertEqual(response.status_code, 429)
+                    retry_after = int(response.headers["retry-after"])
+                    self.assertGreaterEqual(retry_after, 1)
+                    self.assertLessEqual(retry_after, 60)
+
+        upstream.assert_not_called()
 
     async def test_forwarded_for_cannot_bypass_rate_limit(self):
         upstream_client = self.fake_upstream_client(

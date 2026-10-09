@@ -5,7 +5,7 @@ from threading import Lock
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -209,6 +209,53 @@ def enforce_rate_limit(client_key: str) -> None:
 
 
 
+class ChatRateLimitMiddleware:
+    """Apply per-client rate limits before request-body validation."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if (
+            scope.get("type") != "http"
+            or scope.get("path") != "/api/ai-chat"
+            or scope.get("method") != "POST"
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        client = scope.get("client")
+        client_key = (
+            client[0]
+            if isinstance(client, (tuple, list))
+            and client
+            and isinstance(client[0], str)
+            else "unknown"
+        )
+
+        try:
+            enforce_rate_limit(client_key)
+        except HTTPException as exc:
+            body = b'{"detail":"Too many requests. Please try again later."}'
+            retry_after = (exc.headers or {}).get("Retry-After", "1")
+            await send({
+                "type": "http.response.start",
+                "status": 429,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode("ascii")),
+                    (b"retry-after", str(retry_after).encode("ascii")),
+                ],
+            })
+            await send({"type": "http.response.body", "body": body})
+            return
+
+        await self.app(scope, receive, send)
+
+
+# Register before CORS so CORS remains outermost and browser errors include
+# the appropriate access-control headers.
+app.add_middleware(ChatRateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
@@ -239,10 +286,7 @@ async def health():
 
 
 @app.post("/api/ai-chat")
-async def ai_chat(request: Request, payload: ChatRequest):
-    client_ip = request.client.host if request.client else "unknown"
-    enforce_rate_limit(client_ip)
-
+async def ai_chat(payload: ChatRequest):
     payload = {
         "sessionId": payload.sessionId,
         "message": payload.message,
