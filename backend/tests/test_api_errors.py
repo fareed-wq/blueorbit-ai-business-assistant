@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -32,6 +33,8 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         with main._rate_limit_lock:
             main._rate_limit_requests.clear()
+        with main._chat_concurrency_lock:
+            main._active_chat_requests = 0
 
     async def post_chat(self, payload):
         transport = httpx.ASGITransport(app=main.app)
@@ -137,6 +140,49 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 413)
         self.assertEqual(response.json()["detail"], "Request body too large.")
         upstream.assert_not_called()
+
+    async def test_concurrency_limit_rejects_extra_request_without_calling_n8n(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def delayed_post(*args, **kwargs):
+            started.set()
+            await release.wait()
+            return FakeResponse(status_code=200, payload={"output": "ok"})
+
+        client = self.fake_upstream_client()
+        client.post = AsyncMock(side_effect=delayed_post)
+        first_response = None
+
+        with patch("main.httpx.AsyncClient", return_value=client), patch.object(
+            main, "MAX_CONCURRENT_CHAT_REQUESTS", 1
+        ):
+            first_task = asyncio.create_task(
+                self.post_chat({
+                    "sessionId": "first-session",
+                    "message": "First request",
+                })
+            )
+
+            try:
+                await asyncio.wait_for(started.wait(), timeout=2)
+                second_response = await self.post_chat({
+                    "sessionId": "second-session",
+                    "message": "Second request",
+                })
+
+                self.assertEqual(second_response.status_code, 503)
+                self.assertEqual(
+                    second_response.json()["detail"],
+                    "AI assistant is busy. Please try again shortly.",
+                )
+                self.assertEqual(second_response.headers["retry-after"], "5")
+                client.post.assert_awaited_once()
+            finally:
+                release.set()
+                first_response = await asyncio.wait_for(first_task, timeout=2)
+
+        self.assertEqual(first_response.status_code, 200)
 
     async def test_upstream_connection_error_hides_internal_details(self):
         client = self.fake_upstream_client(

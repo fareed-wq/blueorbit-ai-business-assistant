@@ -22,6 +22,11 @@ if not N8N_WEBHOOK_SECRET:
     raise RuntimeError("N8N_WEBHOOK_SECRET is not configured")
 
 MAX_CHAT_REQUEST_BODY_BYTES = 64 * 1024
+MAX_CONCURRENT_CHAT_REQUESTS = 10
+CONCURRENCY_RETRY_AFTER_SECONDS = 5
+
+_chat_concurrency_lock = Lock()
+_active_chat_requests = 0
 
 
 class RequestBodyLimitMiddleware:
@@ -98,11 +103,64 @@ class RequestBodyLimitMiddleware:
         await send({"type": "http.response.body", "body": body})
 
 
+class ChatConcurrencyMiddleware:
+    """Bound simultaneous requests to the chat endpoint in this process."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        global _active_chat_requests
+
+        if (
+            scope.get("type") != "http"
+            or scope.get("path") != "/api/ai-chat"
+            or scope.get("method") != "POST"
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        with _chat_concurrency_lock:
+            overloaded = (
+                _active_chat_requests >= MAX_CONCURRENT_CHAT_REQUESTS
+            )
+            if not overloaded:
+                _active_chat_requests += 1
+
+        if overloaded:
+            await self._reject_busy(send)
+            return
+
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            with _chat_concurrency_lock:
+                _active_chat_requests -= 1
+
+    @staticmethod
+    async def _reject_busy(send):
+        body = b'{"detail":"AI assistant is busy. Please try again shortly."}'
+        await send({
+            "type": "http.response.start",
+            "status": 503,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+                (
+                    b"retry-after",
+                    str(CONCURRENCY_RETRY_AFTER_SECONDS).encode("ascii"),
+                ),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+
+
 app = FastAPI(title="BlueOrbit AI Assistant API")
 app.add_middleware(
     RequestBodyLimitMiddleware,
     max_body_bytes=MAX_CHAT_REQUEST_BODY_BYTES,
 )
+app.add_middleware(ChatConcurrencyMiddleware)
 
 
 RATE_LIMIT_MAX_REQUESTS = 20
