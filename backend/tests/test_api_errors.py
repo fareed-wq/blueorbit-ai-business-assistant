@@ -184,6 +184,36 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(first_response.status_code, 200)
 
+    async def test_forwarded_for_cannot_bypass_rate_limit(self):
+        upstream_client = self.fake_upstream_client(
+            response=FakeResponse(status_code=200, payload={"output": "ok"})
+        )
+        transport = httpx.ASGITransport(app=main.app)
+
+        with patch("main.httpx.AsyncClient", return_value=upstream_client):
+            async with _REAL_ASYNC_CLIENT(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                for index in range(21):
+                    response = await client.post(
+                        "/api/ai-chat",
+                        json={
+                            "sessionId": f"forwarded-test-{index}",
+                            "message": "Test request",
+                        },
+                        headers={
+                            "X-Forwarded-For": f"198.51.100.{index + 1}",
+                        },
+                    )
+
+                    if index < 20:
+                        self.assertEqual(response.status_code, 200)
+                    else:
+                        self.assertEqual(response.status_code, 429)
+
+        self.assertEqual(upstream_client.post.await_count, 20)
+
     async def test_upstream_connection_error_hides_internal_details(self):
         client = self.fake_upstream_client(
             error=httpx.ConnectError("private connection details")
