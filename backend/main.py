@@ -21,7 +21,88 @@ if not N8N_WEBHOOK_URL:
 if not N8N_WEBHOOK_SECRET:
     raise RuntimeError("N8N_WEBHOOK_SECRET is not configured")
 
+MAX_CHAT_REQUEST_BODY_BYTES = 64 * 1024
+
+
+class RequestBodyLimitMiddleware:
+    """Limit streamed request bodies on the chat endpoint."""
+
+    def __init__(self, app, max_body_bytes: int):
+        self.app = app
+        self.max_body_bytes = max_body_bytes
+
+    async def __call__(self, scope, receive, send):
+        if (
+            scope.get("type") != "http"
+            or scope.get("path") != "/api/ai-chat"
+            or scope.get("method") != "POST"
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        headers = dict(scope.get("headers", []))
+        content_length = headers.get(b"content-length")
+
+        if content_length is not None:
+            try:
+                if int(content_length) > self.max_body_bytes:
+                    await self._reject_oversized(send)
+                    return
+            except ValueError:
+                pass  # Enforce the limit while reading the body below.
+
+        body = bytearray()
+        while True:
+            message = await receive()
+
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                continue
+
+            chunk = message.get("body", b"")
+            if len(body) + len(chunk) > self.max_body_bytes:
+                await self._reject_oversized(send)
+                return
+            body.extend(chunk)
+
+            if not message.get("more_body", False):
+                break
+
+        body_sent = False
+
+        async def replay_receive():
+            nonlocal body_sent
+            if not body_sent:
+                body_sent = True
+                return {
+                    "type": "http.request",
+                    "body": bytes(body),
+                    "more_body": False,
+                }
+            return await receive()
+
+        await self.app(scope, replay_receive, send)
+
+    @staticmethod
+    async def _reject_oversized(send):
+        body = b'{"detail":"Request body too large."}'
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
+
+
 app = FastAPI(title="BlueOrbit AI Assistant API")
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    max_body_bytes=MAX_CHAT_REQUEST_BODY_BYTES,
+)
 
 
 RATE_LIMIT_MAX_REQUESTS = 20

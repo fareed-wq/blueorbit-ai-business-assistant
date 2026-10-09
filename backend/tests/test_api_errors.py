@@ -42,6 +42,19 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
         ) as client:
             return await client.post("/api/ai-chat", json=payload)
 
+    async def post_raw_chat(self, content, headers=None):
+        transport = httpx.ASGITransport(app=main.app)
+
+        async with _REAL_ASYNC_CLIENT(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            return await client.post(
+                "/api/ai-chat",
+                content=content,
+                headers=headers,
+            )
+
     def fake_upstream_client(self, response=None, error=None):
         client = MagicMock()
         client.__aenter__ = AsyncMock(return_value=client)
@@ -90,6 +103,39 @@ class APIErrorHandlingTests(unittest.IsolatedAsyncioTestCase):
             })
 
         self.assertEqual(response.status_code, 422)
+        upstream.assert_not_called()
+
+    async def test_oversized_body_returns_413_without_calling_n8n(self):
+        body = (
+            b'{"sessionId":"test-session","message":"'
+            + b"x" * main.MAX_CHAT_REQUEST_BODY_BYTES
+            + b'"}'
+        )
+
+        with patch("main.httpx.AsyncClient") as upstream:
+            response = await self.post_raw_chat(
+                body,
+                headers={"Content-Type": "application/json"},
+            )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json()["detail"], "Request body too large.")
+        upstream.assert_not_called()
+
+    async def test_oversized_stream_without_content_length_returns_413(self):
+        async def chunks():
+            yield b'{"sessionId":"test-session","message":"'
+            yield b"x" * main.MAX_CHAT_REQUEST_BODY_BYTES
+            yield b'"}'
+
+        with patch("main.httpx.AsyncClient") as upstream:
+            response = await self.post_raw_chat(
+                chunks(),
+                headers={"Content-Type": "application/json"},
+            )
+
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json()["detail"], "Request body too large.")
         upstream.assert_not_called()
 
     async def test_upstream_connection_error_hides_internal_details(self):
