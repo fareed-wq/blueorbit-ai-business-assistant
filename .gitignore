@@ -28,3 +28,10 @@ backend/.venv/
 backend/__pycache__/
 backend/.env
 *.pyc
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
