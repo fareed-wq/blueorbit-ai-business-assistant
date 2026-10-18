@@ -78,9 +78,9 @@ The central `AI Assistant - V1` workflow contains the main AI Agent, model, conv
 | Lead capture | Tested |
 | Demo booking | Tested |
 | Vapi browser Talk through the n8n bridge | Tested |
-| Incoming telephone call to the Vapi number | Configured, but not end-to-end verified |
+| Incoming telephone call to the Vapi number | Tested |
 
-The Vapi telephone number was provisioned and assigned to the assistant. A real inbound phone call has not yet been verified because international calling was unavailable for the tester. Browser-based Vapi Talk provides an alternative for demonstrating the voice integration.
+The Vapi telephone number was provisioned and assigned to the assistant, and an incoming telephone call was tested. Browser-based Vapi Talk is also available for demonstrating the voice integration.
 
 ## Prerequisites
 
