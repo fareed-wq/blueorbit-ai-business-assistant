@@ -4,6 +4,21 @@ A free-first AI automation MVP demonstrating how a business assistant can serve 
 
 This is a learning and portfolio project. BlueOrbit Automation Lab is a fictional demonstration company, and its service descriptions and prices are sample business data.
 
+## Screenshots
+
+### Website chatbot
+
+![BlueOrbit website chatbot answering a company services question](docs/screenshots/01-chatbot.png)
+
+### Browser voice assistant
+
+![BlueOrbit browser voice assistant showing an AI conversation](docs/screenshots/02-voice-assistant.png)
+
+### n8n automation workflow
+
+![BlueOrbit AI Assistant V1 workflow in the n8n editor](docs/screenshots/03-n8n-workflow.png)
+
+
 ## Features
 
 - **Website chatbot:** React frontend connected to a FastAPI backend.
