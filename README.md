@@ -1,5 +1,7 @@
 # BlueOrbit Automation Lab | AI Business Assistant
 
+[![CI](https://github.com/fareed-wq/blueorbit-ai-business-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/fareed-wq/blueorbit-ai-business-assistant/actions/workflows/ci.yml)
+
 A free-first AI automation MVP demonstrating how a business assistant can serve users through a website chatbot, Telegram, and voice interfaces while reusing a central AI assistant and business workflows.
 
 This is a learning and portfolio project. BlueOrbit Automation Lab is a fictional demonstration company, and its service descriptions and prices are sample business data.
