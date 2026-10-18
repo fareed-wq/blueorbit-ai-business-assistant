@@ -94,7 +94,7 @@ The Vapi telephone number was provisioned and assigned to the assistant, and an 
 
 The project was developed with n8n 2.42.4 in a local WSL environment.
 
-**Important:** The current repository contains the frontend and FastAPI backend, not exports of the n8n workflows. Reproducing the complete assistant from a fresh checkout requires configuring or importing the n8n workflows and credentials separately.
+**Important:** This repository includes sanitized n8n workflow templates in [`n8n/workflows/`](n8n/workflows/), with import and configuration instructions in [`n8n/README.md`](n8n/README.md). The templates omit credential bindings, pinned execution data, webhook IDs, private calendar identifiers, and instance-specific sub-workflow references. To recreate the assistant, import the dependencies first, reconnect your own credentials, configure your own calendar and Supabase tables, and set up knowledge ingestion. These are sanitized templates, not backups of a live n8n instance.
 
 ## Run locally
 
@@ -202,7 +202,7 @@ Vapi account credits are limited, and provider pricing and free-tier terms can c
 
 - Keep API keys, bot tokens, webhook secrets, and provider credentials out of source control.
 - Keep populated `.env` files local.
-- Never commit n8n workflow exports that contain credentials or sensitive execution data.
+- Never commit raw n8n exports containing credentials or sensitive execution data. Only publish workflow templates after sanitizing and reviewing them.
 - Use separate credentials for separate integrations.
 - Do not expose the n8n editor through a public tunnel.
 - The backend rate limiter is in memory and is intended for a local MVP, not as a distributed production rate limiter.

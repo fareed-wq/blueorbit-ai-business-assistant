@@ -1,0 +1,445 @@
+{
+  "name": "AI Assistant - Lead Capture Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "company"
+            },
+            {
+              "name": "requirement"
+            },
+            {
+              "name": "session_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -736,
+        -128
+      ],
+      "id": "11d6172b-7b7b-4d58-a349-a0c14a621501",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "Select your Data Table after import"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ $json.name }}",
+            "email": "={{ $json.email }}",
+            "company": "={{ $json.company }}",
+            "requirement": "={{ $json.requirement }}",
+            "created_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "requirement",
+              "displayName": "requirement",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -608,
+        96
+      ],
+      "id": "180cd69a-9065-4944-a85f-0c04b0711390",
+      "name": "Insert row"
+    },
+    {
+      "parameters": {
+        "tableId": "leads",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.name }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.email }}"
+            },
+            {
+              "fieldId": "company",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.company }}"
+            },
+            {
+              "fieldId": "requirement",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.requirement }}"
+            },
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.session_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        32
+      ],
+      "id": "87e456e4-25e9-4ea7-a8eb-d4e68cb1aaa2",
+      "name": "Create a row",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "session_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.session_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -512,
+        -128
+      ],
+      "id": "f971486e-c129-48d7-8033-19a8557ab56c",
+      "name": "Get many rows",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "948733a0-0c8d-4d54-9411-61d06ee2c6c0",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -288,
+        -128
+      ],
+      "id": "be91c3d0-a983-4d37-adfc-1829a80db4b0",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e680241f-01b6-4613-a2f4-39bf6644a048",
+              "name": "success",
+              "value": "true",
+              "type": "string"
+            },
+            {
+              "id": "e7e053a1-351c-4d7c-bb77-1b228c71dc77",
+              "name": "duplicate",
+              "value": "true",
+              "type": "string"
+            },
+            {
+              "id": "c5eb3e05-08a5-4cce-9521-2676560dccb9",
+              "name": "message",
+              "value": "Lead already captured for this conversation.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -64,
+        -224
+      ],
+      "id": "b9177bc3-18bf-4a79-ac4a-5b5282acf53e",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9df20eab-3b37-47aa-814f-bada56ce50c0",
+              "name": "success",
+              "value": "true",
+              "type": "string"
+            },
+            {
+              "id": "ddfcdf52-7be9-4a5d-98f7-ba11a54001ff",
+              "name": "duplicate",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "635f2866-8828-4370-bd12-ef41aaeb3008",
+              "name": "message",
+              "value": "Lead successfully captured.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        336,
+        -144
+      ],
+      "id": "8563ac48-3663-461b-b59a-873e7ba69ccc",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1956c403-1c04-4425-a1ba-9c8d782ce21f",
+              "leftValue": "={{ $json.id ?? '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        96,
+        -80
+      ],
+      "id": "42ed81df-4788-4b2b-81da-7d68fd13cbdd",
+      "name": "Verify Lead Was Saved"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4b46d950-1b71-4eae-b5c6-587201134ff8",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "7a095950-e2be-403f-b06c-e9afbebb052f",
+              "name": "duplicate",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "b63b1965-81bb-4c11-8502-3c8ed2c59c6a",
+              "name": "message",
+              "value": "The lead could not be saved. Please try again shortly.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        256,
+        112
+      ],
+      "id": "83d55f19-2d3a-4ab6-9122-240d5d36772b",
+      "name": "Return Lead Save Failure"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Verify Lead Was Saved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Lead Save Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Lead Was Saved": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Lead Save Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": []
+}

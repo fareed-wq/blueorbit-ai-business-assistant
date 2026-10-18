@@ -1,0 +1,452 @@
+{
+  "name": "AI Assistant - Calendar Slot Finder Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "Select your calendar after import"
+        },
+        "returnAll": true,
+        "timeMin": "={{ DateTime.fromISO($json.date, { zone: 'Asia/Riyadh' }).startOf('day').toISO() }}",
+        "timeMax": "={{ DateTime.fromISO($json.date, { zone: 'Asia/Riyadh' }).plus({ days: 1 }).startOf('day').toISO() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        -208
+      ],
+      "id": "20d0360c-d1a9-48b0-ae09-0062f67cbd73",
+      "name": "Get many events",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const date = $('Calendar Slot Trigger').first().json.date;\n\nif (!date) {\n  throw new Error('No date was provided.');\n}\n\nconst zoneOffset = '+03:00';\nconst slotMinutes = 30;\nconst workStartHour = 9;\nconst workEndHour = 17;\n\n// Parse the requested date safely.\nconst dateCheck = new Date(`${date}T12:00:00Z`);\n\nif (Number.isNaN(dateCheck.getTime())) {\n  throw new Error(`Invalid date: ${date}`);\n}\n\n// Sunday = 0, Monday = 1, ..., Thursday = 4\nconst weekday = dateCheck.getUTCDay();\nconst allowedDays = new Set([0, 1, 2, 3, 4]);\n\nif (!allowedDays.has(weekday)) {\n  return [\n    {\n      json: {\n        success: true,\n        date,\n        timezone: 'Asia/Riyadh',\n        duration_minutes: slotMinutes,\n        slots: [],\n        available_count: 0,\n        message: 'No demo appointments are offered on this day.'\n      }\n    }\n  ];\n}\n\n// Saudi Arabia is UTC+3 year-round.\nconst dayStartMs = new Date(`${date}T00:00:00${zoneOffset}`).getTime();\nconst nextDayStartMs = new Date(`${date}T00:00:00${zoneOffset}`).getTime()\n  + (24 * 60 * 60 * 1000);\n\nconst businessStartMs =\n  new Date(\n    `${date}T${String(workStartHour).padStart(2, '0')}:00:00${zoneOffset}`\n  ).getTime();\n\nconst businessEndMs =\n  new Date(\n    `${date}T${String(workEndHour).padStart(2, '0')}:00:00${zoneOffset}`\n  ).getTime();\n\n// Get events returned by Google Calendar.\n// Ignore empty placeholder items produced by Always Output Data.\nconst events = $input.all();\n\nconst busyPeriods = [];\n\nfor (const item of events) {\n  const event = item.json;\n\n  const startValue = event.start?.dateTime || event.start?.date;\n  const endValue = event.end?.dateTime || event.end?.date;\n\n  if (!startValue || !endValue) {\n    continue;\n  }\n\n  let startMs;\n  let endMs;\n\n  // Timed event\n  if (event.start?.dateTime) {\n    startMs = new Date(startValue).getTime();\n    endMs = new Date(endValue).getTime();\n  } else {\n    // All-day event.\n    // Google Calendar's end date is exclusive.\n    startMs = new Date(`${startValue}T00:00:00${zoneOffset}`).getTime();\n    endMs = new Date(`${endValue}T00:00:00${zoneOffset}`).getTime();\n  }\n\n  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {\n    continue;\n  }\n\n  // Only keep events that overlap the requested day.\n  if (endMs <= dayStartMs || startMs >= nextDayStartMs) {\n    continue;\n  }\n\n  busyPeriods.push({\n    startMs: Math.max(startMs, dayStartMs),\n    endMs: Math.min(endMs, nextDayStartMs),\n  });\n}\n\nconst nowMs = Date.now();\nconst slots = [];\n\nfor (\n  let slotStartMs = businessStartMs;\n  slotStartMs < businessEndMs;\n  slotStartMs += slotMinutes * 60 * 1000\n) {\n  const slotEndMs = slotStartMs + slotMinutes * 60 * 1000;\n\n  if (slotEndMs > businessEndMs) {\n    break;\n  }\n\n  // Don't offer times that have already passed.\n  if (slotStartMs <= nowMs) {\n    continue;\n  }\n\n  const conflicts = busyPeriods.some(\n    ({ startMs, endMs }) =>\n      slotStartMs < endMs && slotEndMs > startMs\n  );\n\n  if (conflicts) {\n    continue;\n  }\n\n  const start = new Date(slotStartMs);\n  const end = new Date(slotEndMs);\n\n  const formatTime = (d) =>\n    new Intl.DateTimeFormat('en-US', {\n      timeZone: 'Asia/Riyadh',\n      hour: 'numeric',\n      minute: '2-digit',\n      hour12: true,\n    }).format(d);\n\n  slots.push({\n    start_time: start.toISOString(),\n    end_time: end.toISOString(),\n    display: `${formatTime(start)} - ${formatTime(end)}`,\n  });\n}\n\nreturn [\n  {\n    json: {\n      success: true,\n      date,\n      timezone: 'Asia/Riyadh',\n      duration_minutes: slotMinutes,\n      available_count: slots.length,\n      slots,\n      message: slots.length\n        ? `${slots.length} demo slots are available.`\n        : 'No demo slots are available on this date.'\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -400
+      ],
+      "id": "402e4065-06d1-4c3b-9575-e090e97bbaa0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "date"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1040,
+        32
+      ],
+      "id": "efb2ad5a-342b-4d0e-98df-db440e3c687b",
+      "name": "Calendar Slot Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c74b2082-2b0b-4114-8b4f-ab9593889d9c",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "12fa4436-d431-446a-a4c3-3b6a2c2da3c9",
+              "name": "availability_check_failed",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "779bf209-5fb7-45c7-9f89-6d93fbbaf1f0",
+              "name": "date",
+              "value": "={{ $('Calendar Slot Trigger').first().json.date }}",
+              "type": "string"
+            },
+            {
+              "id": "16a87a09-17d6-447c-ac4e-6c3c67bd83c2",
+              "name": "timezone",
+              "value": "Asia/Riyadh",
+              "type": "string"
+            },
+            {
+              "id": "5b73202a-9e7e-48f1-ae55-9d1da335d106",
+              "name": "message",
+              "value": "We couldn't verify demo availability for that date because the calendar could not be reached. Please try again later.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        464,
+        -176
+      ],
+      "id": "47fe18f0-e7a7-4c62-ae22-1482686a4e1d",
+      "name": "Return Slot Finder Failure"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawDate = $input.first()?.json?.date;\nconst date = typeof rawDate === 'string' ? rawDate.trim() : '';\n\nconst hasCorrectFormat = /^\\d{4}-\\d{2}-\\d{2}$/.test(date);\nlet isValid = false;\n\nif (hasCorrectFormat) {\n  const [year, month, day] = date.split('-').map(Number);\n  const parsed = new Date(`${date}T00:00:00.000Z`);\n\n  isValid =\n    year >= 1000 &&\n    Number.isFinite(parsed.getTime()) &&\n    parsed.toISOString().slice(0, 10) === date &&\n    month >= 1 &&\n    month <= 12 &&\n    day >= 1 &&\n    day <= 31;\n}\n\nreturn [{\n  json: {\n    date,\n    date_valid: isValid,\n    invalid_date: !isValid,\n    message: isValid\n      ? ''\n      : 'The requested date is invalid. Please provide a valid date in YYYY-MM-DD format.'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        32
+      ],
+      "id": "822f8277-aa6e-4a54-bd51-db5e446e8c30",
+      "name": "Validate Requested Date"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8564d7c4-b83c-43f7-a631-e2aa8b41fca3",
+              "leftValue": "={{ $json.date_valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -624,
+        32
+      ],
+      "id": "7ddeb295-011a-4671-b971-b500896ce6bf",
+      "name": "Is Date Valid"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1c477176-7b06-40cf-8bc8-937a36a68886",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "1cbfa249-d32c-4bb6-8c2c-f14b1988199e",
+              "name": "invalid_date",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "88e2158d-1094-4e24-a2a1-531c6722457c",
+              "name": "date",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            },
+            {
+              "id": "9300d212-82c3-41cd-adf5-d21d2e9621df",
+              "name": "message",
+              "value": "The requested date is invalid. Please provide a valid date in YYYY-MM-DD format.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -416,
+        176
+      ],
+      "id": "639d4b2b-79c7-4fd0-b6c0-5bde2e0547c7",
+      "name": "Return Invalid Date"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "5cc73ef4-1d8a-4db0-8093-0117bcd97bdc",
+              "leftValue": "={{ $json.date < $now.setZone('Asia/Riyadh').toISODate() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -416,
+        -240
+      ],
+      "id": "bb13a364-d5b5-4b9a-bcb2-547f60d6a1d8",
+      "name": "Is Date in the Past?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "32540f2e-e371-48ca-bae5-b472e912e041",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "dc9e6b54-a0e8-4fe1-bacc-a64db7cd345b",
+              "name": "date_in_past",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "fcca0c31-374c-4aad-9f1a-848a356ca488",
+              "name": "date",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            },
+            {
+              "id": "4d28438c-d99e-4468-b46a-22030d5bbf0c",
+              "name": "message",
+              "value": "That date has already passed. Please provide today or a future date.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -160,
+        -384
+      ],
+      "id": "5c271c77-0204-48b1-8c84-692779cb7624",
+      "name": "Return Past Date"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first()?.json ?? {};\nconst date = item.date;\n\nif (typeof date !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {\n  throw new Error('A valid date is required.');\n}\n\n// Sunday = 0, Monday = 1, ..., Saturday = 6\nconst weekday = new Date(`${date}T12:00:00.000Z`).getUTCDay();\nconst isWorkingDay = weekday >= 0 && weekday <= 4;\n\nreturn [{\n  json: {\n    ...item,\n    weekday,\n    is_working_day: isWorkingDay,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -96
+      ],
+      "id": "3c0350a0-b3e9-4128-b35a-a56ce3a2f8e5",
+      "name": "Check Demo Working Day"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1c653b90-9a46-4392-8af4-978381600b9a",
+              "leftValue": "={{ $json.is_working_day }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -16,
+        -16
+      ],
+      "id": "dcbb995e-eb10-4a63-b970-caa6a2640434",
+      "name": "Is Demo Working Day?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const date = $input.first()?.json?.date;\n\nreturn [{\n  json: {\n    success: true,\n    date,\n    timezone: 'Asia/Riyadh',\n    duration_minutes: 30,\n    available_count: 0,\n    slots: [],\n    message: 'No demo appointments are offered on this day.',\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        128
+      ],
+      "id": "af6df4ab-37b7-4b80-96c6-06e3b412d3a8",
+      "name": "Return Non-Working Day"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get many events": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Slot Finder Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar Slot Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Requested Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Requested Date": {
+      "main": [
+        [
+          {
+            "node": "Is Date Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Date Valid": {
+      "main": [
+        [
+          {
+            "node": "Is Date in the Past?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Invalid Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Date in the Past?": {
+      "main": [
+        [
+          {
+            "node": "Return Past Date",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Demo Working Day",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Demo Working Day": {
+      "main": [
+        [
+          {
+            "node": "Is Demo Working Day?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Demo Working Day?": {
+      "main": [
+        [
+          {
+            "node": "Get many events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Non-Working Day",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Riyadh",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "nodeGroups": []
+}

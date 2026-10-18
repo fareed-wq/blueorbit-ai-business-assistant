@@ -1,0 +1,568 @@
+{
+  "name": "AI Assistant - Google Calendar Booking Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "start_time"
+            },
+            {
+              "name": "end_time"
+            },
+            {
+              "name": "name"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "session_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -480,
+        -96
+      ],
+      "id": "87e414e3-70c8-4778-a7f9-6528d7d254a8",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "Select your calendar after import"
+        },
+        "start": "={{ $('When Executed by Another Workflow').item.json.start_time }}",
+        "end": "={{ $('When Executed by Another Workflow').item.json.end_time }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ $('When Executed by Another Workflow').item.json.email }}"
+          ],
+          "description": "=Demo appointment for {{ $('When Executed by Another Workflow').item.json.name }} on {{ $('When Executed by Another Workflow').item.json.start_time }}. Customer email: {{ $('When Executed by Another Workflow').item.json.email }}. BlueOrbit AI booking. Session ID: {{ $('When Executed by Another Workflow').item.json.session_id }}",
+          "sendUpdates": "all",
+          "summary": "BlueOrbit Automation Lab Demo"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        -336
+      ],
+      "id": "8e8e4611-dc26-4773-bbd1-77c55373c3b8",
+      "name": "Create an event",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "calendar",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "Select your calendar after import"
+        },
+        "timeMin": "={{ $json.start_time }}",
+        "timeMax": "={{ $json.end_time }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -256,
+        -96
+      ],
+      "id": "0cf71728-b2c1-41ed-a126-ca5fead23706",
+      "name": "Get availability in a calendar",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ec09b4b8-e246-4022-871e-3bfbd8c82093",
+              "leftValue": "={{ $json.available }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -16,
+        -208
+      ],
+      "id": "aa4ad1b8-bd32-4b67-81d5-f1e9efa74490",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "990930c8-7425-4de3-b4f9-89ff8225ab33",
+              "name": "success",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "c5b2df69-aea1-4373-850c-b0eba579c788",
+              "name": "message",
+              "value": "The requested demo time is not available.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        -32
+      ],
+      "id": "cb47a1d3-ac3a-4b93-9dbd-7d098fb7b749",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8e7bad52-05c5-456c-b42b-ee5b508c5ac5",
+              "name": "success",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "a7a6e8d8-bfa8-4e51-b32f-88ebab9cda8c",
+              "name": "message",
+              "value": "=Demo booked successfully for {{ $('When Executed by Another Workflow').item.json.name }} on {{ $('When Executed by Another Workflow').item.json.start_time }}. A calendar invitation has been created and will be sent to {{ $('When Executed by Another Workflow').item.json.email }}.",
+              "type": "string"
+            },
+            {
+              "id": "4633b36c-9b77-4f52-bba6-8f1646b3edef",
+              "name": "event_created",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        576,
+        -320
+      ],
+      "id": "860d775f-f0a0-49fe-80a0-333c917b3577",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "tableId": "bookings",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "google_event_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "calendar_id",
+              "fieldValue": "YOUR_GOOGLE_CALENDAR_ID"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.name }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.email }}"
+            },
+            {
+              "fieldId": "start_time",
+              "fieldValue": "={{ $json.start.dateTime }}"
+            },
+            {
+              "fieldId": "end_time",
+              "fieldValue": "={{ $json.end.dateTime }}"
+            },
+            {
+              "fieldId": "timezone",
+              "fieldValue": "={{ $json.start.timeZone }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "confirmed"
+            },
+            {
+              "fieldId": "session_id",
+              "fieldValue": "={{ $('When Executed by Another Workflow').item.json.session_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        352,
+        -208
+      ],
+      "id": "2e5b24fe-672e-4de9-9fff-8f154726b652",
+      "name": "Create a row",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "Select your calendar after import"
+        },
+        "eventId": "={{ $('Create an event').item.json.id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        528,
+        -48
+      ],
+      "id": "772a7949-ec3d-4d78-95ab-da872a871acd",
+      "name": "Delete an event",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c0f4e70d-dc35-48b5-8307-5a0f6606e347",
+              "name": "success",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "6be1fcbe-85f0-4c4d-bbe9-f8e30afe4f03",
+              "name": "booking_saved",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "76f8490e-accf-4383-a6cf-7dde03b309a9",
+              "name": "message",
+              "value": "The demo could not be completed because the booking could not be saved. The calendar event was removed.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        736,
+        -176
+      ],
+      "id": "9d439cc5-4ba6-4c72-a39c-87c9b303468e",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "Select your calendar after import"
+        },
+        "returnAll": true,
+        "timeMax": "={{ $now.plus({ days: 7 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -384,
+        -336
+      ],
+      "id": "0fbe4f62-6894-4b3f-87ec-abec2a5c958e",
+      "name": "Get many events"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fbb887bb-5a35-4da9-a064-e4f5533ee271",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "9732a1db-0f62-4c2e-811b-3982b2a6986e",
+              "name": "booking_saved",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "3d05faaf-c80a-47c0-9c09-ab86f829896a",
+              "name": "cleanup_failed",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "2c50476e-1145-4592-acc0-d342c9a818c1",
+              "name": "message",
+              "value": "The booking could not be completed. The team needs to review it before another booking attempt.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        720,
+        64
+      ],
+      "id": "b4ecad7c-99f4-4626-8ca0-c65416f627ca",
+      "name": "Return Rollback Failure"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "14694f3d-9072-408e-bd11-ca9288d05b0e",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "f1f18f5b-57e6-43ec-9d01-0bdd77be5603",
+              "name": "booking_saved",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "fae9416c-5d55-4797-9c39-817d551d2608",
+              "name": "availability_check_failed",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "395281f1-7274-4110-9a58-b12f9e66b5f4",
+              "name": "message",
+              "value": "We couldn't verify calendar availability right now, so no booking was attempted. Please try again later.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -32,
+        48
+      ],
+      "id": "6910102b-123a-413a-acec-35c2831f4eb8",
+      "name": "Return Availability Check Failure"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9b827e1f-887b-45d7-a003-c5436a015062",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "edac5008-8f19-46d8-be6a-2248e8c6ded1",
+              "name": "booking_saved",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "cb61e752-66e9-4114-bf8c-5b254959f05a",
+              "name": "event_creation_failed",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "593378ed-8a6e-4366-8a60-ace5088132d1",
+              "name": "event_status_uncertain",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "0fddea31-772f-4c79-a79e-80d5c0dd9931",
+              "name": "message",
+              "value": "We couldn't confirm whether the calendar event was created. Please don't try booking again yet; our team needs to verify the calendar before another attempt.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        352,
+        -384
+      ],
+      "id": "71ba20f2-55f0-49d9-8b42-5696f990616e",
+      "name": "Return Event Creation Failure"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get availability in a calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get availability in a calendar": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Availability Check Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create an event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an event": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Event Creation Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Delete an event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete an event": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Rollback Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Riyadh",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "nodeGroups": []
+}

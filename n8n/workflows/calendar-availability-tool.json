@@ -1,0 +1,117 @@
+{
+  "name": "AI Assistant - Calendar Availability Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "start_time"
+            },
+            {
+              "name": "end_time"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -336,
+        -48
+      ],
+      "id": "475a7e0c-0c8b-4b1a-bed9-a831b79f3759",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "resource": "calendar",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_CALENDAR_ID",
+          "mode": "list",
+          "cachedResultName": "Select your calendar after import"
+        },
+        "timeMin": "={{ $json.start_time }}",
+        "timeMax": "={{ $json.end_time }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        -112,
+        -48
+      ],
+      "id": "46d4b685-5d64-4a14-8bc3-9398cd78e89e",
+      "name": "Get availability in a calendar",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2c07b9e1-2c38-4ccc-a2cf-2ce13b559cd4",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "8c7d8a31-a5c7-49f4-a03f-7ab54a8f776e",
+              "name": "availability_check_failed",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "788a8a51-0f35-4cb4-9358-989c14033945",
+              "name": "message",
+              "value": "We couldn't verify availability because the calendar could not be reached. Please try again later.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        112,
+        48
+      ],
+      "id": "76e1b23c-7a83-45f8-8764-2d296e6b6dd0",
+      "name": "Return Availability Failure"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get availability in a calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get availability in a calendar": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Return Availability Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": []
+}
